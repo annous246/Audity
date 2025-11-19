@@ -1,0 +1,3 @@
+https://www.dictionaryapi.com/api/v3/references/thesaurus/json/playful?key=8fa02468-d4cb-4ec9-8f41-a2266930526d
+https://api.dictionaryapi.dev/api/v2/entries/en/hello
+
