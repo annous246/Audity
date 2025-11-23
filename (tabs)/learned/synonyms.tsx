@@ -14,6 +14,7 @@ const Synonyms = ({
   function handleHeights(height: number) {
     setSynHeight(height);
   }
+
   return (
     <View>
       <View style={[mainStyles.row, styles.container]}>
