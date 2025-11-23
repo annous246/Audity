@@ -33,12 +33,15 @@ import {
   speakText,
   speakAsyncTTS,
 } from '../../services/SoundAndTTSServices/TtsNativeService';
-import BackgroundService from 'react-native-background-actions';
 import {getMeaningApi1} from '../../services/LibServices/MainLibService';
 import {getMeaningApi2} from '../../services/LibServices/SecondLibService';
 import {meaningType} from '../../types/types';
+import {
+  handleKeywordDetection,
+  handleSpeechInterrupt,
+  handleSpeechStop,
+} from '../../utils/speechHandlers';
 const {width: screenWidth, height: screenHeight} = Dimensions.get('window');
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const Home = () => {
   const [listening, setListening] = useState<boolean>(false);
@@ -49,24 +52,10 @@ const Home = () => {
   const instantStop = useRef<boolean>(false);
   const talkingAnimation = useSharedValue(0);
   const wordAnimated = useSharedValue(0);
+  const startKeyWord = 'ALEXA';
 
   const voiceAnimationRef = useRef<LottieView>(null);
-  const backgroundPorcupineStart = async () => {
-    await sleep(2000);
-    await startPorcupine();
-  };
-  const startPorcupineBackground = async () => {
-    await BackgroundService.start(backgroundPorcupineStart, {
-      taskName: 'MyBackgroundTask',
-      taskTitle: 'Background Running',
-      taskDesc: 'Your function is running even in background.',
-      taskIcon: {
-        name: 'ic_launcher',
-        type: 'mipmap',
-      },
-      parameters: {},
-    });
-  };
+
   const startAnimation = () => {
     // optional, start from beginning
     voiceAnimationRef.current?.play();
@@ -78,182 +67,61 @@ const Home = () => {
   useEffect(() => {
     wordAnimated.value = withTiming(word.length ? 1 : 0, {duration: 300});
   }, [word]);
+
   useEffect(() => {
     talkingAnimation.value = withTiming(listening ? 1 : 0, {duration: 200});
     if (!listening) {
       //stop it all completely
-      console.log('from distant service');
       const f = async () => await stopSpeechService();
       f();
-      console.log('called !!!');
     }
   }, [listening]);
-  function explain(data: any) {
-    console.log(data);
-    console.log(data['meta']['syns'][0]);
-    return [data['shortdef'][0], data['meta']['syns'][0]];
-  }
 
   useEffect(() => {
-    const id = 0;
-    // setInterval(() => {
-    //   console.log('instantStop.current');
-    //   console.log(instantStop.current);
-    //   console.log(porcStatus());
-    // }, 500);
-    return () => {
-      clearInterval(id);
-    };
-  }, []);
-
-  async function realTimeExplain(result: any) {
-    const [currentDefinition, syns] = explain(result);
-    console.log('definition');
-    console.log(currentDefinition);
-    console.log('syn');
-    console.log(syns);
-    if (Array.isArray(syns)) setSynonyms(syns);
-    setDefinition(currentDefinition);
-    //open mic again for hearing stop
-
-    await speakAsync('means ' + currentDefinition);
-    console.log('*************', instantStop.current);
-    if (instantStop.current) {
-      instantStop.current = false;
-      return;
-    }
-    await speakAsync('synonyms ');
-    if (instantStop.current) {
-      instantStop.current = false;
-      return;
-    }
-    if (!syns.length) return;
-    for (const syn of syns) {
-      console.log(syn);
-      await speakAsync(syn);
-      console.log(instantStop.current);
-      if (instantStop.current) {
-        instantStop.current = false;
-        return;
-      }
-    }
-  }
-  useEffect(() => {
+    startPorcupine(startKeyWord);
     DeviceEventEmitter.addListener('SpeechServiceStopped', async () => {
-      //safety against double call
-      console.log('Speech service actually stopped');
-
-      //do speaking before timeout otherwise itll be stopped
-      let extracted_from_prev: string = '';
-      let p = '';
-      setWord((prev: string) => {
-        extracted_from_prev = prev;
-        return prev;
-      });
-
-      //await startPorcupine();
-      const result: meaningType = await getMeaningApi1(extracted_from_prev);
-      const result2: meaningType = await getMeaningApi2(extracted_from_prev);
-      console.log(result2);
-      //if not on the app  -> we call it on background after same delay
-      if (instantStop.current) {
-        instantStop.current = false;
-        return;
-      }
-      if (!instantStop.current) await startPorcupineBackground();
-
-      if (!result.ok) {
-        //means didnt get the word
-        console.log('didnt get');
-        //try second service
-        if (!result2.ok) {
-          //fallback speak result 1
-          return speak(
-            `sorry didnt understand the word ${extracted_from_prev} Did you mean ${result.result} ?`,
-          );
-        } else {
-          //got fallback
-          await realTimeExplain(result2.result);
-          DeviceEventEmitter.emit('NewWord', extracted_from_prev);
-        }
-      } else {
-        //got first one
-        console.log('got  it');
-        await realTimeExplain(result.result);
-        DeviceEventEmitter.emit('NewWord', extracted_from_prev);
-      }
-      //this is CRUTIAL + TIMEOUT AS SPEECH SERVICE TAKES TIME TO ACTUALLY CLEAR AUDIO STREAM !!!!!!
-      if (instantStop.current) {
-        instantStop.current = false;
-        return;
-      }
+      await handleSpeechStop(
+        setSynonyms,
+        setDefinition,
+        setWord,
+        instantStop,
+        startKeyWord,
+      );
     });
-    //starting detection
-    DeviceEventEmitter.addListener('KeywordDetected', async index => {
-      //keyword detected
 
-      speak('Hello , whats the ambiguous word ');
-
-      setWord('');
-      setDefinition('');
-      setSynonyms([]);
-      instantStop.current = false;
-      // await sleep(1000); DaNGEROUS IF STARTED REST WILL ONLY WORK IN BG
-      setListening(true);
-      await stopPorcupine();
-      await startSpeechService();
+    DeviceEventEmitter.addListener('KeywordDetected', async () => {
+      await handleKeywordDetection(
+        setWord,
+        setDefinition,
+        setSynonyms,
+        instantStop,
+        setListening,
+      );
     });
-    DeviceEventEmitter.addListener('stopDetected', async index => {
-      //keyword detected
 
-      instantStop.current = true;
-      speak('im listening');
-
-      // await sleep(1000); DANGEROUS IF STARTED REST WILL ONLY WORK IN BG
-      setListening(true);
-      await stopPorcupine();
-      await startSpeechService();
+    DeviceEventEmitter.addListener('stopDetected', async () => {
+      await handleSpeechInterrupt(setListening, instantStop);
     });
   }, []);
 
   useEffect(() => {
-    //active listening detection
+    //active listening detection -> animation
 
-    console.log('her');
     if (activeDetecting) {
       startAnimation();
     } else {
       stopAnimation();
     }
   }, [activeDetecting]);
+
   const animation = useAnimatedStyle(() => {
     return {opacity: talkingAnimation.value};
   });
+
   const wordAnimation = useAnimatedStyle(() => {
     return {opacity: word.length ? 1 : 0};
   });
 
-  //SOLUTION
-  function speak(text: string) {
-    ForegroundService.start({
-      id: 204,
-      title: 'Speaking...',
-      message: 'TTS is running in background',
-    });
-
-    // Trigger the TTS
-    speakText(text);
-  }
-  async function speakAsync(text: string) {
-    ForegroundService.start({
-      id: 205,
-      title: 'Speaking...',
-      message: 'TTS is running in background',
-    });
-
-    // Trigger the TTS
-    await speakAsyncTTS(text);
-  }
   return (
     <ScrollView
       style={styles.container}
@@ -262,18 +130,14 @@ const Home = () => {
         alignItems: 'center',
         alignContent: 'center',
       }}>
-      <Button
-        title="speak"
-        onPress={() => speak('Hello , whats the ambiguous word ?')}
-      />
-      <Button title="stopPorc" onPress={stopPorcupine} />
+      {/* <Button title="stopPorc" onPress={stopPorcupine} />
       <Button title="startporc" onPress={startPorcupine} />
       <Button title="start" onPress={startSpeechService} />
-      <Button title="stop" onPress={stopSpeechService} />
+      <Button title="stop" onPress={stopSpeechService} /> */}
       <Text style={{color: 'black', fontSize: 20}}>
-        {listening ? 'Listeining ...' : 'Zzzzzzz'}
+        {listening ? 'Listeining ...' : `Say the word (${startKeyWord})`}
       </Text>
-
+      <Button title="startporc" onPress={() => startPorcupine(startKeyWord)} />
       <TranscriptionComponent
         listening={listening}
         setListening={setListening}

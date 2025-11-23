@@ -16,3 +16,9 @@ export async function getMeaningApi1(word: string): Promise<meaningType> {
     };
   }
 }
+
+export function explain(data: any) {
+  console.log(data);
+  console.log(data['meta']['syns'][0]);
+  return [data['shortdef'][0], data['meta']['syns'][0]];
+}

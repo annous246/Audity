@@ -5,6 +5,7 @@ Tts.setDefaultLanguage('en-US');
 Tts.setDefaultRate(0.5);
 Tts.setDefaultPitch(1.0);
 
+import ForegroundService from '@supersami/rn-foreground-service';
 // Speak a text
 export function speakText(text: string) {
   Tts.stop(); // stop any ongoing speech
@@ -30,6 +31,27 @@ export async function speakAsyncTTS(text: string): Promise<void> {
 
     Tts.speak(text);
   });
+}
+
+export function speak(text: string) {
+  ForegroundService.start({
+    id: 204,
+    title: 'Speaking...',
+    message: 'TTS is running in background',
+  });
+
+  // Trigger the TTS
+  speakText(text);
+}
+export async function speakAsync(text: string) {
+  ForegroundService.start({
+    id: 205,
+    title: 'Speaking...',
+    message: 'TTS is running in background',
+  });
+
+  // Trigger the TTS
+  await speakAsyncTTS(text);
 }
 
 // Optional: listen to events

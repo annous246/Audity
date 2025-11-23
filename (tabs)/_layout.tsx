@@ -4,8 +4,7 @@ import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import Home from './home/home';
 import Adder from './adder/adder';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons';
-import Words from './words/words';
-import Learned from './words/learned';
+import Learned from './learned/words/words';
 
 const TabsLayout = () => {
   const Tabs = createBottomTabNavigator();
@@ -23,8 +22,6 @@ const TabsLayout = () => {
     name: string;
     iconName: string;
   }) {
-    console.log(size);
-    console.log(focused);
     return (
       <View style={styles.iconContainer}>
         <MaterialIcons name={iconName} color={color} size={size} />

@@ -3,24 +3,23 @@ import React, {useState} from 'react';
 import mainStyles from '../../styles';
 const Synonyms = ({
   syns,
-  setSynHeights,
+  setSynHeight,
   id,
 }: {
   syns: string[];
-  setSynHeights: any;
+  setSynHeight: any;
   id: number;
 }) => {
   const [learned, setLearned] = useState<boolean>(false);
   function handleHeights(height: number) {
-    setSynHeights((prev: number[]) => {
-      return [...prev.slice(0, id), height, ...prev.slice(id + 1, prev.length)];
-    });
+    setSynHeight(height);
   }
   return (
     <View>
       <View style={[mainStyles.row, styles.container]}>
-        {syns.map(e => (
+        {syns.map((e, i) => (
           <Text
+            key={i}
             style={[
               mainStyles.defaultText,
               styles.syn,
@@ -36,8 +35,10 @@ const Synonyms = ({
       <View
         style={[mainStyles.row, styles.container, styles.visibility]}
         onLayout={e => handleHeights(e.nativeEvent.layout.height)}>
-        {syns.map(e => (
-          <Text style={[mainStyles.defaultText, styles.syn]}>{e}</Text>
+        {syns.map((e, i) => (
+          <Text key={i} style={[mainStyles.defaultText, styles.syn]}>
+            {e}
+          </Text>
         ))}
       </View>
     </View>

@@ -5,6 +5,7 @@ import {
 } from '@picovoice/porcupine-react-native';
 import {Alert, DeviceEventEmitter, Platform} from 'react-native';
 
+import BackgroundService from 'react-native-background-actions';
 import Config from 'react-native-ultimate-config';
 
 console.log('ACCESS_KEY');
@@ -19,13 +20,23 @@ import {AppRegistry} from 'react-native';
 AppRegistry.registerHeadlessTask('SomeTask', () => async () => {
   console.log('Running in background!');
 });
-export const startPorcupine = async () => {
-  if (manager) return; // already running
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const backgroundPorcupineStart = async (word: string) => {
+  await sleep(2000);
+  await startPorcupine(word);
+};
+export const startPorcupine = async (word: string) => {
+  if (manager) return; // already running
+  //if (!(word in BuiltInKeywords))
   try {
     manager = await PorcupineManager.fromBuiltInKeywords(
       ACCESS_KEY,
-      [BuiltInKeywords.ALEXA, BuiltInKeywords.COMPUTER],
+      [
+        BuiltInKeywords[word as keyof typeof BuiltInKeywords],
+        BuiltInKeywords.COMPUTER,
+      ],
       (keywordIndex: number) => {
         console.log('Keyword detected!', keywordIndex);
         // Emit to JS
@@ -55,6 +66,24 @@ export const stopPorcupine = async () => {
   } catch (e) {
     console.error('Failed to stop Porcupine', e);
   }
+};
+
+export const startPorcupineBackground = async (word: string) => {
+  await BackgroundService.start(
+    async () => {
+      await backgroundPorcupineStart(word);
+    },
+    {
+      taskName: 'MyBackgroundTask',
+      taskTitle: 'Background Running',
+      taskDesc: 'Your function is running even in background.',
+      taskIcon: {
+        name: 'ic_launcher',
+        type: 'mipmap',
+      },
+      parameters: {},
+    },
+  );
 };
 
 export const porcStatus = (): boolean => {
