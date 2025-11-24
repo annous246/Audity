@@ -27,6 +27,15 @@ class SpeechModule(private val reactContext: ReactApplicationContext) :
     val am = reactContext.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
     am.abandonAudioFocus(null)
     }
+    
+    @ReactMethod
+    fun pauseAudio(){
+         pauseBackgroundAudio() 
+    }
+    @ReactMethod
+    fun playAudio(){
+         resumeBackgroundAudio() 
+    }
     @ReactMethod
     fun startService() {
         //start speech service -> stop background audio

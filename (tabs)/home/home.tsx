@@ -41,6 +41,7 @@ import {
   handleSpeechInterrupt,
   handleSpeechStop,
 } from '../../utils/speechHandlers';
+
 const {width: screenWidth, height: screenHeight} = Dimensions.get('window');
 
 const Home = () => {
@@ -50,6 +51,7 @@ const Home = () => {
   const [synonyms, setSynonyms] = useState<string[]>(['']);
   const [definition, setDefinition] = useState<string>('');
   const instantStop = useRef<boolean>(false);
+  const alreadyCalled = useRef<boolean>(false);
   const talkingAnimation = useSharedValue(0);
   const wordAnimated = useSharedValue(0);
   const startKeyWord = 'ALEXA';
@@ -72,13 +74,18 @@ const Home = () => {
     talkingAnimation.value = withTiming(listening ? 1 : 0, {duration: 200});
     if (!listening) {
       //stop it all completely
-      const f = async () => await stopSpeechService();
+      const f = async () => {
+        await stopSpeechService();
+      };
       f();
     }
   }, [listening]);
-
+  async function init() {
+    if (!listening) await startPorcupine(startKeyWord);
+  }
   useEffect(() => {
-    startPorcupine(startKeyWord);
+    init();
+
     DeviceEventEmitter.addListener('SpeechServiceStopped', async () => {
       await handleSpeechStop(
         setSynonyms,
@@ -86,6 +93,7 @@ const Home = () => {
         setWord,
         instantStop,
         startKeyWord,
+        alreadyCalled,
       );
     });
 
@@ -96,11 +104,12 @@ const Home = () => {
         setSynonyms,
         instantStop,
         setListening,
+        alreadyCalled,
       );
     });
 
     DeviceEventEmitter.addListener('stopDetected', async () => {
-      await handleSpeechInterrupt(setListening, instantStop);
+      await handleSpeechInterrupt(setListening, instantStop, alreadyCalled);
     });
   }, []);
 

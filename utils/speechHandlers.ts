@@ -6,7 +6,11 @@ import {
   speakAsync,
 } from '../services/SoundAndTTSServices/TtsNativeService';
 import {meaningType} from '../types/types';
-import {startSpeechService} from '../services/SpeechServices/SpeechService';
+import {
+  pauseAudio,
+  resumeAudio,
+  startSpeechService,
+} from '../services/SpeechServices/SpeechService';
 import {
   startPorcupineBackground,
   stopPorcupine,
@@ -30,12 +34,10 @@ async function realTimeExplain(
   await speakAsync('means ' + currentDefinition);
   console.log('*************', instantStop.current);
   if (instantStop.current) {
-    instantStop.current = false;
     return;
   }
   await speakAsync('synonyms ');
   if (instantStop.current) {
-    instantStop.current = false;
     return;
   }
   if (!syns.length) return;
@@ -44,7 +46,6 @@ async function realTimeExplain(
     await speakAsync(syn);
     console.log(instantStop.current);
     if (instantStop.current) {
-      instantStop.current = false;
       return;
     }
   }
@@ -56,8 +57,11 @@ export async function handleSpeechStop(
   setWord: any,
   instantStop: React.MutableRefObject<boolean>,
   startKeyWord: string,
+  alreadyCalled: React.MutableRefObject<boolean>,
 ) {
   //safety against double call
+  if (alreadyCalled.current) return;
+  alreadyCalled.current = true;
   console.log('Speech service actually stopped');
 
   //do speaking before timeout otherwise itll be stopped
@@ -71,17 +75,28 @@ export async function handleSpeechStop(
   //await startPorcupine();
   const result: meaningType = await getMeaningApi1(extracted_from_prev);
   const result2: meaningType = await getMeaningApi2(extracted_from_prev);
-  console.log(result2);
+  if (!instantStop.current) await startPorcupineBackground(startKeyWord);
+  console.log('result2');
+  console.log('result');
+  console.log(instantStop.current);
   //if not on the app  -> we call it on background after same delay
   if (instantStop.current) {
     instantStop.current = false;
     return;
   }
-  if (!instantStop.current) await startPorcupineBackground(startKeyWord);
+
+  //speech might start  -> pause audio again to listen to results
+  await pauseAudio();
+
   if (!result.ok && !result2.ok) {
-    return speak(
+    speak(
       `sorry didnt understand the word ${extracted_from_prev} Did you mean ${result.result} ?`,
     );
+
+    if (!instantStop.current) {
+      console.log('resume');
+      await resumeAudio();
+    }
   } else if (result.ok) {
     console.log('got  it');
     const [currentDefinition, syns] = explain(result.result);
@@ -91,6 +106,16 @@ export async function handleSpeechStop(
       setDefinition,
       instantStop,
     );
+    if (instantStop.current) {
+      instantStop.current = false;
+      return;
+    }
+    if (!instantStop.current) {
+      console.log('resume1');
+      await resumeAudio();
+    }
+    //add new word in list realtime
+
     DeviceEventEmitter.emit('NewWord', {
       word: extracted_from_prev,
       synonyms: syns,
@@ -104,11 +129,18 @@ export async function handleSpeechStop(
       setDefinition,
       instantStop,
     );
+
+    if (!instantStop.current) {
+      console.log('resume2');
+      await resumeAudio();
+    }
     DeviceEventEmitter.emit('NewWord', {
       word: extracted_from_prev,
       synonyms: syns,
       definition: currentDefinition,
     });
+
+    //explanation done -> resume
   }
 
   //this is CRUTIAL + TIMEOUT AS SPEECH SERVICE TAKES TIME TO ACTUALLY CLEAR AUDIO STREAM !!!!!!
@@ -116,6 +148,7 @@ export async function handleSpeechStop(
     instantStop.current = false;
     return;
   }
+  alreadyCalled.current = false;
 }
 
 export async function handleKeywordDetection(
@@ -124,6 +157,7 @@ export async function handleKeywordDetection(
   setSynonyms: any,
   instantStop: React.MutableRefObject<boolean>,
   setListening: any,
+  alreadyCalled: React.MutableRefObject<boolean>,
 ) {
   speak('Hello , whats the ambiguous word ');
 
@@ -131,21 +165,26 @@ export async function handleKeywordDetection(
   setDefinition('');
   setSynonyms([]);
   instantStop.current = false;
+  alreadyCalled.current = false;
   // await sleep(1000); DaNGEROUS IF STARTED REST WILL ONLY WORK IN BG
   setListening(true);
   await stopPorcupine();
   await startSpeechService();
+  await pauseAudio();
 }
 
 export async function handleSpeechInterrupt(
   setListening: any,
   instantStop: React.MutableRefObject<boolean>,
+  alreadyCalled: React.MutableRefObject<boolean>,
 ) {
   instantStop.current = true;
+  alreadyCalled.current = false;
   speak('im listening');
 
   // await sleep(1000); DANGEROUS IF STARTED REST WILL ONLY WORK IN BG
   setListening(true);
   await stopPorcupine();
   await startSpeechService();
+  await pauseAudio();
 }
